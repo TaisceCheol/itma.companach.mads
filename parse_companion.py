@@ -19,22 +19,27 @@ def format_authority_record(name):
 	date = etree.Element("namePart",type="date")
 	date.text = name['dates']
 	person.append(date)
-	field = etree.Element("fieldOfActivity")
-	field.text = re.split(ur'((?<!Co|Mr|Dr|Ms)\.)',name['bio'])[0]
-	mads.append(field)
+	fields = re.split(ur'((?<!Co|Mr|Dr|Ms)\.)',name['bio'])[0].replace('and',';')
+	fields = filter(lambda x:x.find('born')==-1 and x.find('Co.') == -1 and x.find('From') == -1 and x.find('His') ==-1 and x.find('Her') == -1 and len(x.split()) <= 3,[x.strip() for x in re.split(ur'[\,\;]+',fields)])
+	for f in fields:
+		if len(f) > 0:
+			field = etree.Element("fieldOfActivity")
+			field.text = f.capitalize()
+			mads.append(field)
 	bio = etree.Element("note",type="biographical/historical")
-	strip_formfeeds = re.sub(ur"(\d+\s+)?\x0c[\w+%s]"%companion_set_chars,'',name['bio'],re.UNICODE)
-	bio.text = strip_formfeeds.replace('  ',' ')
+	bio.text = name['bio']
 	mads.append(bio)
 	note= etree.Element("note",type="source",authority="oclc")
 	mads.append(note)
-	note.text = "<http://www.worldcat.org/oclc/821726214>"
+	note.text = r"<http://www.worldcat.org/oclc/821726214>"
 	return mads
 
 def process_name(group):
 	family = group.group('family')
 	given = group.group('given')
 	bio = group.group('bio')
+	bio = re.sub(ur"(\d+\s+)?\x0c[\w+%s]"%companion_set_chars,'',bio,re.UNICODE).replace('  ',' ').replace('- ','')
+	bio = bio.replace(u'ﬁ ','fi').replace(u'ﬂ ','fl').replace('Th ','Th')
 	dates = group.group('dates')
 	datestr = list(filter(lambda x:len(x.strip()),re.match(ur"(\d+)\s?(?:\u2013)([c\.\d\s]+)?",dates).groups()))
 	if len(datestr) == 2:
@@ -45,19 +50,11 @@ def process_name(group):
 		datestr="%s-" % tuple(datestr)
 	return {'family':family,'given':given,'dates':datestr,'bio':bio}
 
-def make_timeline_node(i,name):
-	dates = process_dates(name.group('dates'))
-	record = {'id':i,'type':"point",'content':"%s %s" % (name.group('given'),name.group('family')),'start':dates[0]}
-	strip_formfeeds = re.sub(ur"(\d+\s+)?\x0c[\w+%s]"%companion_set_chars,'',name.group('role'),re.UNICODE)
-	strip_formfeeds = strip_formfeeds.replace('  ',' ').replace('-**newline**','').replace('**newline**',' ').replace('ﬃ ','ffi').replace('ﬁ ','fi').replace('ﬂ ','fl').decode('UTF-8')
-	record['bio'] = strip_formfeeds
-	if len(dates) > 1:
-		record['end'] = dates[-1]
-	return record
+
 
 src = "Companion_to_Irish_Traditional_Music_2nd_edition_text.txt"
 
-companion_set_chars = u"A-Za-z\u00C1\u00E1\u00C9\u00E9\u00CD\u00ED\u00D3\u00F3\u00DA\u00FA\u2013(\-\(\)"
+companion_set_chars = u"A-Za-z\u00C1\u00E1\u00C9\u00E9\u00CD\u00ED\u00D3\u00F3\u00DA\u00FA\u2013\u2019(\-\(\)"
 
 family_group = ur"(?P<family>[%s]{1,}\s{,1}[%s]+?(?=\,))" % (companion_set_chars,companion_set_chars)
 given_group = ur"(?P<given>[%s\.]*\s*[%s\.]*\s*[%s\.]+?(?=\.))" % (companion_set_chars,companion_set_chars,companion_set_chars)
@@ -73,24 +70,15 @@ mads_col = etree.Element("madsCollection")
 names = []
 for i,name in enumerate(name_date_bio.finditer(data)):
 	# print [name.group('family'),name.group('given')]
-	# if i > 5:break
 	data_node = process_name(name)
 	names.append(data_node)
 
 print len(names)
 
-# names.sort(key=lambda x:x.group('dates').decode('utf-8').split(u'\u2013'))
-# timeline_nodes = []
 for i,name in enumerate(names):
 	record = format_authority_record(name)
 	mads_col.append(record)
-	node = make_timeline_node(i+1,name)
-	timeline_nodes.append(node)
 
-# 	if i > 10:break
-
-# with open('/users/itma/documents/piaras_scripts/WorkCode/code/itma.timeline.test/timeline_data.json','w') as f:
-# 	json.dump(timeline_nodes,f)
 
 mads_tree = etree.ElementTree(mads_col)
 mads_tree.write("itma.companion.mads.xml",xml_declaration=True,encoding='UTF-8',pretty_print=True)
