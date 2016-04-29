@@ -11,30 +11,39 @@ def format_authority_record(name):
 	person = etree.Element("name",type="personal")
 	authority.append(person)
 	family = etree.Element("namePart",type="family")
-	family.text = name.group('family').decode('UTF-8')
+	family.text = name['family']
 	person.append((family))
 	given = etree.Element("namePart",type="given")
-	given.text = name.group('given').decode('UTF-8')
+	given.text = name['given']
 	person.append(given)
 	date = etree.Element("namePart",type="date")
-	date.text = name.group('dates').decode('UTF-8')
+	date.text = name['dates']
 	person.append(date)
 	field = etree.Element("fieldOfActivity")
-	strip_formfeeds = re.sub(ur"(\d+\s+)?\x0c[\w+%s]"%companion_set_chars,'',name.group('role'),re.UNICODE)
-	field.text = strip_formfeeds.replace('  ',' ').replace('-**newline**','').replace('**newline**',' ').replace('ﬃ ','ffi').replace('ﬁ ','fi').replace('ﬂ ','fl').decode('UTF-8')
-	authority.append(field)
+	field.text = re.split(ur'((?<!Co|Mr|Dr|Ms)\.)',name['bio'])[0]
+	mads.append(field)
+	bio = etree.Element("note",type="biographical/historical")
+	strip_formfeeds = re.sub(ur"(\d+\s+)?\x0c[\w+%s]"%companion_set_chars,'',name['bio'],re.UNICODE)
+	bio.text = strip_formfeeds.replace('  ',' ')
+	mads.append(bio)
+	note= etree.Element("note",type="source",authority="oclc")
+	mads.append(note)
+	note.text = "<http://www.worldcat.org/oclc/821726214>"
 	return mads
 
-def process_dates(value):
-	dates = value.split('\xe2\x80\x93')
-	start = dates[0]
-	if len(dates) > 1:
-		end = re.match(".*?(?P<number>\d+)",dates[-1])
-		if end:
-			end = end.group('number')
-			if len(end) == 2:
-				end = start[0:2]+end
-	return [start,end]
+def process_name(group):
+	family = group.group('family')
+	given = group.group('given')
+	bio = group.group('bio')
+	dates = group.group('dates')
+	datestr = list(filter(lambda x:len(x.strip()),re.match(ur"(\d+)\s?(?:\u2013)([c\.\d\s]+)?",dates).groups()))
+	if len(datestr) == 2:
+		if len(datestr[-1]) == 2:
+			datestr[-1] = datestr[0][0:2]+datestr[-1]
+		datestr="%s-%s" % tuple(datestr)
+	else:
+		datestr="%s-" % tuple(datestr)
+	return {'family':family,'given':given,'dates':datestr,'bio':bio}
 
 def make_timeline_node(i,name):
 	dates = process_dates(name.group('dates'))
@@ -64,22 +73,24 @@ mads_col = etree.Element("madsCollection")
 names = []
 for i,name in enumerate(name_date_bio.finditer(data)):
 	# print [name.group('family'),name.group('given')]
-	# if i > 25:break
-	names.append(name)
+	# if i > 5:break
+	data_node = process_name(name)
+	names.append(data_node)
 
 print len(names)
 
-# names.sort(key=lambda x:x.group('dates').decode('utf-8').split(u'-'))
+# names.sort(key=lambda x:x.group('dates').decode('utf-8').split(u'\u2013'))
 # timeline_nodes = []
-# for i,name in enumerate(names):
-# 	record = format_authority_record(name)
-# 	node = make_timeline_node(i+1,name)
-# 	mads_col.append(record)
-# 	timeline_nodes.append(node)
-# 	# if i > 100:break
+for i,name in enumerate(names):
+	record = format_authority_record(name)
+	mads_col.append(record)
+	node = make_timeline_node(i+1,name)
+	timeline_nodes.append(node)
+
+# 	if i > 10:break
 
 # with open('/users/itma/documents/piaras_scripts/WorkCode/code/itma.timeline.test/timeline_data.json','w') as f:
 # 	json.dump(timeline_nodes,f)
 
-# mads_tree = etree.ElementTree(mads_col)
-# mads_tree.write("itma.companion.mads.xml",xml_declaration=True,encoding='UTF-8',pretty_print=True)
+mads_tree = etree.ElementTree(mads_col)
+mads_tree.write("itma.companion.mads.xml",xml_declaration=True,encoding='UTF-8',pretty_print=True)
