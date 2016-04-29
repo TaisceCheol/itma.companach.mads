@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
@@ -9,7 +11,7 @@ src = "Companion_to_Irish_Traditional_Music_2nd_edition.pdf"
 with open(src,'rb') as f:
 	rsrcmgr = PDFResourceManager()
 	retstr = StringIO()
-	codec = 'utf-8'
+	codec = 'UTF-8'
 	laparams = LAParams()
 	device = TextConverter(rsrcmgr, retstr, codec=codec, laparams=laparams)
 	interpreter = PDFPageInterpreter(rsrcmgr, device)
@@ -24,6 +26,5 @@ with open(src,'rb') as f:
 
 	with open("Companion_to_Irish_Traditional_Music_2nd_edition_text.txt",'wb') as f:
 		f.write(text)
-
 
 print 'Complete'
